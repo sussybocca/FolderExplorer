@@ -23,9 +23,9 @@ export async function createUser(username) {
 
 // ---------- PassPin ----------
 export async function createPassPin(userId) {
-  const plainToken = crypto.randomBytes(6).toString('hex').slice(0, 8).toUpperCase() // e.g., "A3F9B2C1"
+  const plainToken = crypto.randomBytes(6).toString('hex').slice(0, 8).toUpperCase()
   const hashed = crypto.createHash('sha256').update(plainToken).digest('hex')
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString() // 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
   await supabaseAdmin
     .from('passpin_tokens')
@@ -37,11 +37,9 @@ export async function createPassPin(userId) {
 export async function verifyPassPin(username, plainToken) {
   const hashed = crypto.createHash('sha256').update(plainToken).digest('hex')
 
-  // Find user
   const user = await getUserByUsername(username)
   if (!user) return null
 
-  // Find valid token
   const { data } = await supabaseAdmin
     .from('passpin_tokens')
     .select('*')
@@ -53,7 +51,6 @@ export async function verifyPassPin(username, plainToken) {
 
   if (!data) return null
 
-  // Mark as used
   await supabaseAdmin
     .from('passpin_tokens')
     .update({ used: true })
@@ -83,7 +80,6 @@ export async function getFolders(limit = 50) {
 }
 
 export async function getFolderBySlug(username, slug) {
-  // First get user id
   const user = await getUserByUsername(username)
   if (!user) return null
 
@@ -105,10 +101,44 @@ export async function getFolderById(folderId) {
   return data
 }
 
+// ---------- Folder Files ----------
+export async function addFolderFiles(folderId, filePaths) {
+  const inserts = filePaths.map(path => ({ folder_id: folderId, path }))
+  const { error } = await supabaseAdmin
+    .from('folder_files')
+    .insert(inserts, { onConflict: 'folder_id,path' })
+  if (error) throw error
+}
+
+export async function listFolderFiles(folderId) {
+  const { data } = await supabaseAdmin
+    .from('folder_files')
+    .select('path, updated_at')
+    .eq('folder_id', folderId)
+    .order('path')
+  return data || []
+}
+
 // ---------- Collaborations ----------
 export async function requestCollaboration(folderId, userId) {
   const { error } = await supabaseAdmin
     .from('collaborations')
     .insert({ folder_id: folderId, user_id: userId })
-  if (error && error.code !== '23505') throw error // ignore duplicate
+  if (error && error.code !== '23505') throw error
+}
+
+export async function isFolderOwner(folderId, userId) {
+  const folder = await getFolderById(folderId)
+  return folder && folder.user_id === userId
+}
+
+export async function hasAcceptedCollaboration(folderId, userId) {
+  const { data } = await supabaseAdmin
+    .from('collaborations')
+    .select('*')
+    .eq('folder_id', folderId)
+    .eq('user_id', userId)
+    .eq('status', 'accepted')
+    .maybeSingle()
+  return !!data
 }
