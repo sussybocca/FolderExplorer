@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Folder</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>...</header>
+    <main>
+        <h2>Upload a folder</h2>
+        <form id="upload-form">
+            <input type="text" id="folderName" placeholder="Folder name" required>
+            <input type="file" id="folderInput" webkitdirectory directory multiple required>
+            <button type="submit">Upload</button>
+        </form>
+        <div id="status"></div>
+    </main>
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const folderName = document.getElementById('folderName').value;
+            const files = document.getElementById('folderInput').files;
+            if (files.length === 0) return;
+
+            const formData = new FormData();
+            formData.append('folderName', folderName);
+            for (let file of files) {
+                // Preserve relative path
+                const relativePath = file.webkitRelativePath;
+                formData.append('files[]', file, relativePath);
+            }
+
+            document.getElementById('status').innerText = 'Uploading...';
+            const res = await fetch('/.netlify/functions/upload-folder', {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('status').innerHTML = `Success! Your folder is live at <a href="/u/${data.slug}">/u/${data.slug}</a>`;
+            } else {
+                document.getElementById('status').innerText = 'Error: ' + data.error;
+            }
+        });
+    </script>
+</body>
+</html>
