@@ -1,0 +1,24 @@
+{
+  "name": "folderexplorer-web",
+  "version": "1.0.0",
+  "description": "Upload folders, edit files, and run static sites instantly.",
+  "main": "index.html",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "busboy": "^1.6.0",
+    "cookie": "^0.6.0",
+    "jsonwebtoken": "^9.0.2",
+    "mime-types": "^2.1.35",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
