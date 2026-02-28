@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Folder - FolderExplorer.Web</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/theme/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/xml/xml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/css/css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/htmlmixed/htmlmixed.min.js"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>FolderExplorer.Web</h1>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/explore.html">Explore</a>
+                <a href="/upload.html">Upload</a>
+                <a href="/my-folders.html">My Folders</a>
+                <a href="/notifications.html">Notifications</a>
+            </nav>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <h2 id="folder-name">Loading...</h2>
+            <div class="editor-container">
+                <div class="file-tree">
+                    <h3>Files</h3>
+                    <ul id="file-list"></ul>
+                </div>
+                <div class="editor-pane">
+                    <div class="editor-toolbar">
+                        <span id="current-file">No file selected</span>
+                        <button id="save-btn" disabled>Save</button>
+                    </div>
+                    <textarea id="editor"></textarea>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const folderId = urlParams.get('folderId');
+        if (!folderId) {
+            window.location.href = '/my-folders.html';
+        }
+
+        let currentFile = null;
+        let editor = null;
+
+        // Initialize CodeMirror
+        document.addEventListener('DOMContentLoaded', () => {
+            editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+                lineNumbers: true,
+                theme: 'dracula',
+                autoCloseTags: true,
+                autoCloseBrackets: true,
+                tabSize: 2,
+                indentUnit: 2
+            });
+            editor.setSize(null, '100%');
+            loadFiles();
+        });
+
+        async function loadFiles() {
+            const res = await fetch(`/.netlify/functions/list-files?folderId=${folderId}`);
+            if (res.status === 401) {
+                window.location.href = '/generate-passpin.html';
+                return;
+            }
+            const files = await res.json();
+            const fileList = document.getElementById('file-list');
+            fileList.innerHTML = files.map(f => 
+                `<li onclick="selectFile('${f.path}')">📄 ${f.path}</li>`
+            ).join('');
+        }
+
+        window.selectFile = async (path) => {
+            document.querySelectorAll('#file-list li').forEach(li => li.classList.remove('active'));
+            event.target.classList.add('active');
+            currentFile = path;
+            document.getElementById('current-file').innerText = path;
+            document.getElementById('save-btn').disabled = false;
+
+            const res = await fetch(`/.netlify/functions/get-file?folderId=${folderId}&path=${encodeURIComponent(path)}`);
+            const data = await res.json();
+            editor.setValue(data.content);
+        };
+
+        document.getElementById('save-btn').addEventListener('click', async () => {
+            if (!currentFile) return;
+            const content = editor.getValue();
+            const res = await fetch('/.netlify/functions/update-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderId, path: currentFile, content })
+            });
+            if (res.ok) {
+                alert('Saved successfully');
+            } else {
+                alert('Save failed');
+            }
+        });
+    </script>
+</body>
+</html>
