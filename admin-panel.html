@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Panel - FolderExplorer.Web</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .admin-section {
+            background: white;
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow);
+        }
+        .admin-section h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: var(--primary-dark);
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        .form-group input[type="text"],
+        .form-group input[type="password"],
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 1rem;
+        }
+        .form-group input[type="checkbox"] {
+            margin-right: 0.5rem;
+        }
+        .color-picker {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .color-picker input[type="color"] {
+            width: 50px;
+            height: 40px;
+            border: 2px solid var(--border);
+            border-radius: var(--radius);
+        }
+        .generated-passpin {
+            background: var(--surface);
+            padding: 1rem;
+            border-radius: var(--radius);
+            font-family: monospace;
+            font-size: 1.2rem;
+            margin-top: 1rem;
+            word-break: break-all;
+        }
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .button-group button {
+            flex: 1;
+        }
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>FolderExplorer.Web</h1>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/explore.html">Explore</a>
+                <a href="/upload.html">Upload</a>
+                <a href="/my-folders.html">My Folders</a>
+                <a href="/notifications.html">Notifications</a>
+            </nav>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <h2>Admin Panel</h2>
+            <div id="messages"></div>
+            <form id="admin-form">
+                <input type="hidden" id="folderId" value="">
+                
+                <div class="admin-section">
+                    <h3>🔐 Access Control</h3>
+                    <div class="form-group">
+                        <label for="adminPassword">Admin Password</label>
+                        <input type="password" id="adminPassword" placeholder="Leave blank to keep current">
+                        <small>Set a password for accessing this folder's admin area. If blank, existing password remains.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="passpinEnabled"> Enable PassPin authentication for this folder
+                        </label>
+                        <small>When enabled, users can request a one-time PassPin to access this folder's admin area.</small>
+                    </div>
+                    <div class="button-group">
+                        <button type="button" id="generatePasspinBtn" class="secondary">Generate PassPin</button>
+                    </div>
+                    <div id="passpinResult" class="generated-passpin" style="display: none;"></div>
+                </div>
+
+                <div class="admin-section">
+                    <h3>🎨 UI Customization</h3>
+                    <div class="form-group">
+                        <label for="uiTheme">Theme</label>
+                        <select id="uiTheme">
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="auto">Auto (follow system)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pageTitle">Page Title</label>
+                        <input type="text" id="pageTitle" placeholder="My Awesome Folder">
+                    </div>
+                    <div class="form-group">
+                        <label>Primary Color</label>
+                        <div class="color-picker">
+                            <input type="color" id="primaryColor" value="#6366f1">
+                            <span id="primaryColorValue">#6366f1</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit">Save Settings</button>
+                    <button type="button" id="cancelBtn" onclick="window.location.href='/my-folders.html'">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </main>
+    <script>
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folderId = urlParams.get('folderId');
+            if (!folderId) {
+                window.location.href = '/my-folders.html';
+                return;
+            }
+            document.getElementById('folderId').value = folderId;
+
+            const messagesDiv = document.getElementById('messages');
+            const passpinResultDiv = document.getElementById('passpinResult');
+            const adminPasswordInput = document.getElementById('adminPassword');
+            const passpinEnabledCheckbox = document.getElementById('passpinEnabled');
+            const uiThemeSelect = document.getElementById('uiTheme');
+            const pageTitleInput = document.getElementById('pageTitle');
+            const primaryColorInput = document.getElementById('primaryColor');
+            const primaryColorSpan = document.getElementById('primaryColorValue');
+
+            function showMessage(text, isSuccess = true) {
+                messagesDiv.innerHTML = `<div class="${isSuccess ? 'success-message' : 'error-message'}">${text}</div>`;
+                setTimeout(() => { messagesDiv.innerHTML = ''; }, 5000);
+            }
+
+            // Load current config
+            async function loadConfig() {
+                try {
+                    const res = await fetch(`/.netlify/functions/get-folder-config?folderId=${folderId}`);
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    if (!res.ok) {
+                        throw new Error('Failed to load config');
+                    }
+                    const config = await res.json();
+                    
+                    // Populate form
+                    passpinEnabledCheckbox.checked = config.passpinEnabled || false;
+                    uiThemeSelect.value = config.ui?.theme || 'light';
+                    pageTitleInput.value = config.ui?.title || '';
+                    if (config.ui?.colors?.primary) {
+                        primaryColorInput.value = config.ui.colors.primary;
+                        primaryColorSpan.textContent = config.ui.colors.primary;
+                    }
+                    // Password field is intentionally left blank
+                } catch (err) {
+                    console.error(err);
+                    showMessage('Error loading configuration: ' + err.message, false);
+                }
+            }
+
+            // Save config
+            document.getElementById('admin-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const config = {
+                    passpinEnabled: passpinEnabledCheckbox.checked,
+                    ui: {
+                        theme: uiThemeSelect.value,
+                        title: pageTitleInput.value,
+                        colors: {
+                            primary: primaryColorInput.value
+                        }
+                    }
+                };
+
+                // Only include password if provided
+                if (adminPasswordInput.value.trim() !== '') {
+                    config.adminPassword = adminPasswordInput.value;
+                }
+
+                try {
+                    const res = await fetch('/.netlify/functions/update-folder-config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folderId, config })
+                    });
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || 'Save failed');
+                    }
+                    const data = await res.json();
+                    showMessage('Settings saved successfully!');
+                    // Clear password field after save
+                    adminPasswordInput.value = '';
+                } catch (err) {
+                    console.error(err);
+                    showMessage('Error saving settings: ' + err.message, false);
+                }
+            });
+
+            // Generate PassPin
+            document.getElementById('generatePasspinBtn').addEventListener('click', async () => {
+                try {
+                    const res = await fetch('/.netlify/functions/generate-folder-passpin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folderId })
+                    });
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.error || 'Failed to generate PassPin');
+                    }
+                    const data = await res.json();
+                    passpinResultDiv.style.display = 'block';
+                    passpinResultDiv.innerHTML = `Generated PassPin: <strong>${data.passpin}</strong><br><small>Share this with collaborators. It is valid for 10 minutes (not yet implemented).</small>`;
+                } catch (err) {
+                    console.error(err);
+                    showMessage('Error generating PassPin: ' + err.message, false);
+                }
+            });
+
+            // Update color display
+            primaryColorInput.addEventListener('input', () => {
+                primaryColorSpan.textContent = primaryColorInput.value;
+            });
+
+            loadConfig();
+        })();
+    </script>
+</body>
+</html>
