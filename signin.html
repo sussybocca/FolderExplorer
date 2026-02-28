@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sign In</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>...</header>
+    <main>
+        <h2>Sign in with PassPin</h2>
+        <form id="signin-form">
+            <input type="text" id="username" placeholder="Username" required>
+            <input type="text" id="pin" placeholder="PassPin" required>
+            <button type="submit">Sign In</button>
+        </form>
+    </main>
+    <script>
+        document.getElementById('signin-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const pin = document.getElementById('pin').value;
+            const res = await fetch('/.netlify/functions/verify-passpin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, pin })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                window.location.href = '/upload.html';
+            } else {
+                alert('Sign in failed: ' + data.error);
+            }
+        });
+    </script>
+</body>
+</html>
