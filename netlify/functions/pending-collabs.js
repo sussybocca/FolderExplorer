@@ -19,7 +19,7 @@ export const handler = async (event) => {
       body: JSON.stringify(requests),
     }
   } catch (error) {
-    console.error(error)
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) }
+    console.error('Error in pending-collabs:', error)
+    return { statusCode: 500, body: JSON.stringify({ error: error.message }) }
   }
 }
