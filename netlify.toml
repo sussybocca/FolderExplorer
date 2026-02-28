@@ -1,0 +1,16 @@
+[build]
+  functions = "netlify/functions"
+
+[build.environment]
+  # environment variables are set in Netlify dashboard
+
+[[redirects]]
+  from = "/u/*"
+  to = "/.netlify/functions/serve-folder"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
