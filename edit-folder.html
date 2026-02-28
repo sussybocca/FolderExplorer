@@ -11,6 +11,24 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/xml/xml.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/css/css.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.17/mode/htmlmixed/htmlmixed.min.js"></script>
+    <style>
+        .error-message {
+            color: #dc2626;
+            background: #fee2e2;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .loading {
+            color: var(--text-light);
+            padding: 1rem;
+        }
+        .no-files {
+            color: var(--text-light);
+            padding: 1rem;
+            list-style: none;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -27,11 +45,13 @@
     </header>
     <main>
         <div class="container">
-            <h2 id="folder-name">Loading...</h2>
+            <h2 id="folder-name">Loading folder...</h2>
+            <div id="error-container" class="error-message" style="display: none;"></div>
             <div class="editor-container">
                 <div class="file-tree">
                     <h3>Files</h3>
                     <ul id="file-list"></ul>
+                    <div id="file-loading" class="loading">Loading files...</div>
                 </div>
                 <div class="editor-pane">
                     <div class="editor-toolbar">
@@ -44,68 +64,174 @@
         </div>
     </main>
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const folderId = urlParams.get('folderId');
-        if (!folderId) {
-            window.location.href = '/my-folders.html';
-        }
-
-        let currentFile = null;
-        let editor = null;
-
-        // Initialize CodeMirror
-        document.addEventListener('DOMContentLoaded', () => {
-            editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
-                lineNumbers: true,
-                theme: 'dracula',
-                autoCloseTags: true,
-                autoCloseBrackets: true,
-                tabSize: 2,
-                indentUnit: 2
-            });
-            editor.setSize(null, '100%');
-            loadFiles();
-        });
-
-        async function loadFiles() {
-            const res = await fetch(`/.netlify/functions/list-files?folderId=${folderId}`);
-            if (res.status === 401) {
-                window.location.href = '/generate-passpin.html';
+        (function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const folderId = urlParams.get('folderId');
+            if (!folderId) {
+                window.location.href = '/my-folders.html';
                 return;
             }
-            const files = await res.json();
-            const fileList = document.getElementById('file-list');
-            fileList.innerHTML = files.map(f => 
-                `<li onclick="selectFile('${f.path}')">📄 ${f.path}</li>`
-            ).join('');
-        }
 
-        window.selectFile = async (path) => {
-            document.querySelectorAll('#file-list li').forEach(li => li.classList.remove('active'));
-            event.target.classList.add('active');
-            currentFile = path;
-            document.getElementById('current-file').innerText = path;
-            document.getElementById('save-btn').disabled = false;
+            let currentFile = null;
+            let editor = null;
+            const fileListEl = document.getElementById('file-list');
+            const fileLoadingEl = document.getElementById('file-loading');
+            const errorContainer = document.getElementById('error-container');
+            const currentFileSpan = document.getElementById('current-file');
+            const saveBtn = document.getElementById('save-btn');
 
-            const res = await fetch(`/.netlify/functions/get-file?folderId=${folderId}&path=${encodeURIComponent(path)}`);
-            const data = await res.json();
-            editor.setValue(data.content);
-        };
-
-        document.getElementById('save-btn').addEventListener('click', async () => {
-            if (!currentFile) return;
-            const content = editor.getValue();
-            const res = await fetch('/.netlify/functions/update-file', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ folderId, path: currentFile, content })
-            });
-            if (res.ok) {
-                alert('Saved successfully');
-            } else {
-                alert('Save failed');
+            function showError(message) {
+                errorContainer.style.display = 'block';
+                errorContainer.innerText = message;
             }
-        });
+
+            function hideError() {
+                errorContainer.style.display = 'none';
+            }
+
+            // Initialize CodeMirror
+            document.addEventListener('DOMContentLoaded', () => {
+                editor = CodeMirror.fromTextArea(document.getElementById('editor'), {
+                    lineNumbers: true,
+                    theme: 'dracula',
+                    autoCloseTags: true,
+                    autoCloseBrackets: true,
+                    tabSize: 2,
+                    indentUnit: 2
+                });
+                editor.setSize(null, '100%');
+                loadFiles();
+            });
+
+            async function loadFiles() {
+                fileLoadingEl.style.display = 'block';
+                fileListEl.innerHTML = '';
+                hideError();
+
+                try {
+                    const res = await fetch(`/.netlify/functions/list-files?folderId=${folderId}`);
+                    
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(`Failed to load files: ${res.status} ${text.substring(0, 100)}`);
+                    }
+                    
+                    const contentType = res.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await res.text();
+                        throw new Error(`Expected JSON but got ${contentType}: ${text.substring(0, 100)}`);
+                    }
+                    
+                    const files = await res.json();
+                    if (!Array.isArray(files)) {
+                        throw new Error('Invalid response format');
+                    }
+                    
+                    renderFileList(files);
+                } catch (err) {
+                    console.error(err);
+                    showError(err.message);
+                } finally {
+                    fileLoadingEl.style.display = 'none';
+                }
+            }
+
+            function renderFileList(files) {
+                if (files.length === 0) {
+                    fileListEl.innerHTML = '<li class="no-files">No files found</li>';
+                    return;
+                }
+                
+                files.forEach(f => {
+                    const li = document.createElement('li');
+                    li.textContent = `📄 ${f.path}`;
+                    li.dataset.path = f.path;
+                    li.addEventListener('click', (e) => selectFile(e.currentTarget.dataset.path));
+                    fileListEl.appendChild(li);
+                });
+            }
+
+            async function selectFile(path) {
+                document.querySelectorAll('#file-list li').forEach(li => li.classList.remove('active'));
+                
+                const targetLi = Array.from(document.querySelectorAll('#file-list li')).find(li => li.dataset.path === path);
+                if (targetLi) targetLi.classList.add('active');
+
+                currentFile = path;
+                currentFileSpan.innerText = path;
+                saveBtn.disabled = false;
+                hideError();
+
+                try {
+                    const res = await fetch(`/.netlify/functions/get-file?folderId=${folderId}&path=${encodeURIComponent(path)}`);
+                    
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(`Failed to load file: ${res.status} ${text.substring(0, 100)}`);
+                    }
+                    
+                    const contentType = res.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        const text = await res.text();
+                        throw new Error(`Expected JSON but got ${contentType}: ${text.substring(0, 100)}`);
+                    }
+                    
+                    const data = await res.json();
+                    if (typeof data.content !== 'string') {
+                        throw new Error('Invalid content format');
+                    }
+                    
+                    editor.setValue(data.content);
+                } catch (err) {
+                    console.error(err);
+                    showError(err.message);
+                }
+            }
+
+            saveBtn.addEventListener('click', async () => {
+                if (!currentFile) return;
+                
+                const content = editor.getValue();
+                saveBtn.disabled = true;
+                hideError();
+
+                try {
+                    const res = await fetch('/.netlify/functions/update-file', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ folderId, path: currentFile, content })
+                    });
+                    
+                    if (res.status === 401) {
+                        window.location.href = '/generate-passpin.html';
+                        return;
+                    }
+                    
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(`Save failed: ${res.status} ${text.substring(0, 100)}`);
+                    }
+                    
+                    const data = await res.json();
+                    alert('Saved successfully');
+                } catch (err) {
+                    console.error(err);
+                    showError(err.message);
+                } finally {
+                    saveBtn.disabled = false;
+                }
+            });
+        })();
     </script>
 </body>
 </html>
