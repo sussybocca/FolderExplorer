@@ -39,10 +39,11 @@
                 return;
             }
             container.innerHTML = folders.map(f => `
-                <div class="folder-card">
-                    <h3><a href="/edit-folder.html?folderId=${f.id}">${f.name}</a></h3>
-                    <p>${f.slug} · ${new Date(f.created_at).toLocaleDateString()}</p>
-                </div>
+               <div class="folder-card">
+    <h3><a href="/edit-folder.html?folderId=${f.id}">${f.name}</a></h3>
+    <p>${f.slug} · ${new Date(f.created_at).toLocaleDateString()}</p>
+    <button onclick="window.location.href='/admin-panel.html?folderId=${f.id}'">Admin Panel</button>
+</div>
             `).join('');
         }
         loadFolders();
