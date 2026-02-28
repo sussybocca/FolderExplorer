@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PassPin</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>...</header>
+    <main>
+        <h2>Get your one-time PassPin</h2>
+        <form id="generate-form">
+            <input type="text" id="username" placeholder="Username" required>
+            <button type="submit">Generate Pin</button>
+        </form>
+        <div id="result" style="display:none;">
+            <p>Your PassPin (valid for 10 minutes):</p>
+            <code id="pin"></code>
+            <p><a href="/signin.html">Go to Sign In</a></p>
+        </div>
+    </main>
+    <script>
+        document.getElementById('generate-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const res = await fetch('/.netlify/functions/generate-passpin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('pin').textContent = data.pin;
+                document.getElementById('result').style.display = 'block';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    </script>
+</body>
+</html>
