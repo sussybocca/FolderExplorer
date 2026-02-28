@@ -168,16 +168,17 @@ export async function getUserFolders(userId) {
 
 // ---------- Collaboration requests for folders owned by user ----------
 export async function getPendingCollaborationRequests(userId) {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('collaborations')
-    .select('*, users(username), folders(name, slug)')
+    .select(`
+      *,
+      users(username),
+      folders!inner(name, slug)
+    `)
+    .eq('folders.user_id', userId)
     .eq('status', 'pending')
-    .in('folder_id', 
-      supabaseAdmin
-        .from('folders')
-        .select('id')
-        .eq('user_id', userId)
-    )
+  
+  if (error) throw error
   return data || []
 }
 
