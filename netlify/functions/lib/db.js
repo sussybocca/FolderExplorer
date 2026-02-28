@@ -69,6 +69,14 @@ export async function createFolder(userId, name, slug, config) {
   if (error) throw error
   return data
 }
+// ---------- Folder Config ----------
+export async function updateFolderConfig(folderId, config) {
+  const { error } = await supabaseAdmin
+    .from('folders')
+    .update({ config })
+    .eq('id', folderId)
+  if (error) throw error
+}
 
 export async function getFolders(limit = 50) {
   const { data } = await supabaseAdmin
@@ -190,3 +198,4 @@ export async function updateCollaborationStatus(collabId, status) {
     .eq('id', collabId)
   if (error) throw error
 }
+
