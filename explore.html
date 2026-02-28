@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Explore Folders</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>...</header>
+    <main>
+        <h2>Explore public folders</h2>
+        <div id="folders-list"></div>
+    </main>
+    <script>
+        async function loadFolders() {
+            const res = await fetch('/.netlify/functions/folders');
+            const folders = await res.json();
+            const container = document.getElementById('folders-list');
+            container.innerHTML = folders.map(f => `
+                <div class="folder-card">
+                    <h3><a href="/u/${f.users.username}/${f.slug}">${f.name}</a></h3>
+                    <p>by ${f.users.username}</p>
+                    <button onclick="requestCollab('${f.id}')">Request Collaboration</button>
+                </div>
+            `).join('');
+        }
+
+        async function requestCollab(folderId) {
+            const res = await fetch('/.netlify/functions/request-collab', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderId })
+            });
+            if (res.ok) {
+                alert('Collaboration request sent!');
+            } else {
+                const data = await res.json();
+                alert('Error: ' + data.error);
+            }
+        }
+
+        loadFolders();
+    </script>
+</body>
+</html>
