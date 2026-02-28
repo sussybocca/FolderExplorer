@@ -1,4 +1,4 @@
-import { createUser, getUserByUsername, createPassPin } from './lib/db.js'
+import { createUser, getUserByUsername, createPassPin, setUserPassword, verifyUserPassword } from './lib/db.js'
 
 export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -6,15 +6,22 @@ export const handler = async (event) => {
   }
 
   try {
-    const { username } = JSON.parse(event.body)
-    if (!username || typeof username !== 'string') {
-      return { statusCode: 400, body: JSON.stringify({ error: 'Username required' }) }
+    const { username, password } = JSON.parse(event.body)
+    if (!username || !password) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Username and password required' }) }
     }
 
-    // Get or create user
     let user = await getUserByUsername(username)
     if (!user) {
+      // First-time user: create and set password
       user = await createUser(username)
+      await setUserPassword(user.id, password)
+    } else {
+      // Existing user: verify password
+      const valid = await verifyUserPassword(user.id, password)
+      if (!valid) {
+        return { statusCode: 401, body: JSON.stringify({ error: 'Invalid password' }) }
+      }
     }
 
     const pin = await createPassPin(user.id)
@@ -24,7 +31,10 @@ export const handler = async (event) => {
       body: JSON.stringify({ pin }),
     }
   } catch (error) {
-    console.error(error)
-    return { statusCode: 500, body: JSON.stringify({ error: 'Internal server error' }) }
+    console.error('Error in generate-passpin:', error)
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: error.message || 'Internal server error' }),
+    }
   }
 }
