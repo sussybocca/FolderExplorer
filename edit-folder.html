@@ -18,6 +18,8 @@
             padding: 1rem;
             border-radius: 0.5rem;
             margin-bottom: 1rem;
+            white-space: pre-wrap;
+            word-break: break-word;
         }
         .loading {
             color: var(--text-light);
@@ -27,6 +29,18 @@
             color: var(--text-light);
             padding: 1rem;
             list-style: none;
+        }
+        .retry-btn {
+            margin-top: 1rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius);
+            cursor: pointer;
+        }
+        .retry-btn:hover {
+            background: var(--primary-dark);
         }
     </style>
 </head>
@@ -52,6 +66,7 @@
                     <h3>Files</h3>
                     <ul id="file-list"></ul>
                     <div id="file-loading" class="loading">Loading files...</div>
+                    <button id="retry-btn" class="retry-btn" style="display: none;">Retry Loading Files</button>
                 </div>
                 <div class="editor-pane">
                     <div class="editor-toolbar">
@@ -79,14 +94,17 @@
             const errorContainer = document.getElementById('error-container');
             const currentFileSpan = document.getElementById('current-file');
             const saveBtn = document.getElementById('save-btn');
+            const retryBtn = document.getElementById('retry-btn');
 
-            function showError(message) {
+            function showError(message, details = '') {
                 errorContainer.style.display = 'block';
-                errorContainer.innerText = message;
+                errorContainer.innerHTML = `<strong>Error:</strong> ${message}<br><br>${details}`;
+                retryBtn.style.display = 'block';
             }
 
             function hideError() {
                 errorContainer.style.display = 'none';
+                retryBtn.style.display = 'none';
             }
 
             // Initialize CodeMirror
@@ -100,6 +118,10 @@
                     indentUnit: 2
                 });
                 editor.setSize(null, '100%');
+                loadFiles();
+            });
+
+            retryBtn.addEventListener('click', () => {
                 loadFiles();
             });
 
@@ -118,24 +140,26 @@
                     
                     if (!res.ok) {
                         const text = await res.text();
-                        throw new Error(`Failed to load files: ${res.status} ${text.substring(0, 100)}`);
+                        throw new Error(`HTTP ${res.status}: ${text.substring(0, 200)}`);
                     }
                     
                     const contentType = res.headers.get('content-type');
                     if (!contentType || !contentType.includes('application/json')) {
                         const text = await res.text();
-                        throw new Error(`Expected JSON but got ${contentType}: ${text.substring(0, 100)}`);
+                        // Show the actual HTML response to help debug
+                        const preview = text.length > 500 ? text.substring(0, 500) + '...' : text;
+                        throw new Error(`Expected JSON but got ${contentType}. Response preview:\n${preview}`);
                     }
                     
                     const files = await res.json();
                     if (!Array.isArray(files)) {
-                        throw new Error('Invalid response format');
+                        throw new Error('Invalid response format: not an array');
                     }
                     
                     renderFileList(files);
                 } catch (err) {
-                    console.error(err);
-                    showError(err.message);
+                    console.error('LoadFiles error:', err);
+                    showError(err.message, 'Check that your Netlify functions are deployed and the list-files function exists.');
                 } finally {
                     fileLoadingEl.style.display = 'none';
                 }
