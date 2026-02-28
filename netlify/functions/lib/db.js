@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs'
 import { supabaseAdmin } from './supabase.js'
 import crypto from 'crypto'
 
@@ -197,5 +198,24 @@ export async function updateCollaborationStatus(collabId, status) {
     .update({ status })
     .eq('id', collabId)
   if (error) throw error
+}
+
+export async function setUserPassword(userId, password) {
+  const hashed = await bcrypt.hash(password, 10)
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update({ password_hash: hashed })
+    .eq('id', userId)
+  if (error) throw error
+}
+
+export async function verifyUserPassword(userId, password) {
+  const { data } = await supabaseAdmin
+    .from('users')
+    .select('password_hash')
+    .eq('id', userId)
+    .maybeSingle()
+  if (!data || !data.password_hash) return false
+  return bcrypt.compare(password, data.password_hash)
 }
 
