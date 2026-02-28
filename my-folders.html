@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Folders - FolderExplorer.Web</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>FolderExplorer.Web</h1>
+            <nav>
+                <a href="/">Home</a>
+                <a href="/explore.html">Explore</a>
+                <a href="/upload.html">Upload</a>
+                <a href="/my-folders.html">My Folders</a>
+                <a href="/notifications.html">Notifications</a>
+                <a href="/generate-passpin.html">Sign In</a>
+            </nav>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <h2>Your Folders</h2>
+            <div id="folders-list" class="folder-grid"></div>
+        </div>
+    </main>
+    <script>
+        async function loadFolders() {
+            const res = await fetch('/.netlify/functions/my-folders');
+            if (res.status === 401) {
+                window.location.href = '/generate-passpin.html';
+                return;
+            }
+            const folders = await res.json();
+            const container = document.getElementById('folders-list');
+            if (folders.length === 0) {
+                container.innerHTML = '<p>You have no folders yet. <a href="/upload.html">Upload one</a>.</p>';
+                return;
+            }
+            container.innerHTML = folders.map(f => `
+                <div class="folder-card">
+                    <h3><a href="/edit-folder.html?folderId=${f.id}">${f.name}</a></h3>
+                    <p>${f.slug} · ${new Date(f.created_at).toLocaleDateString()}</p>
+                </div>
+            `).join('');
+        }
+        loadFolders();
+    </script>
+</body>
+</html>
